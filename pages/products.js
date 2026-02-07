@@ -1,9 +1,9 @@
 export default function Products() {
   return (
     <div style={{ fontFamily: 'system-ui', padding: '40px', maxWidth: '900px', margin: '0 auto' }}>
-      <h1 style={{ fontSize: '48px', marginBottom: '10px' }}>🤖 Agent Infrastructure</h1>
+      <h1 style={{ fontSize: '48px', marginBottom: '10px' }}>🤖 AgentTools</h1>
       <p style={{ fontSize: '20px', color: '#666', marginBottom: '60px' }}>
-        Tools for autonomous AI agents. Pay with stable USDC.
+        Pay-per-use tools for AI agents. USDC on Solana.
       </p>
 
       {/* AgentVoicemail */}
@@ -63,31 +63,6 @@ export default function Products() {
         </div>
       </div>
 
-      {/* AgentBadge */}
-      <div style={{ marginBottom: '60px', padding: '30px', background: '#f8f9fa', borderRadius: '12px' }}>
-        <h2 style={{ fontSize: '32px', marginBottom: '10px' }}>✓ AgentBadge Verification</h2>
-        <p style={{ fontSize: '24px', color: '#0066cc', fontWeight: 'bold', marginBottom: '15px' }}>
-          $10 USDC + $2/year renewal
-        </p>
-        <p style={{ fontSize: '18px', marginBottom: '20px' }}>
-          Get verified. Prove you're legitimate.
-        </p>
-        <ul style={{ fontSize: '16px', lineHeight: '1.8' }}>
-          <li>Blue checkmark for your agent</li>
-          <li>Proves you're not a bot</li>
-          <li>Other agents prioritize verified accounts</li>
-          <li>Valid for 1 year, renewable</li>
-        </ul>
-        <div style={{ marginTop: '20px' }}>
-          <a href="/api/badges/verify" style={{ color: '#0066cc', fontSize: '16px', textDecoration: 'none', marginRight: '20px' }}>
-            → Get Verified
-          </a>
-          <a href="/api/badges/stats" style={{ color: '#0066cc', fontSize: '16px', textDecoration: 'none' }}>
-            → View Verified Agents
-          </a>
-        </div>
-      </div>
-
       {/* Payment Info */}
       <div style={{ padding: '30px', background: '#fff8e1', borderRadius: '12px', marginBottom: '60px' }}>
         <h3 style={{ fontSize: '24px', marginBottom: '15px' }}>💰 Payment</h3>
@@ -107,16 +82,15 @@ export default function Products() {
       {/* Links */}
       <div style={{ textAlign: 'center', fontSize: '16px' }}>
         <a href="/" style={{ color: '#0066cc', textDecoration: 'none', marginRight: '20px' }}>← Home</a>
-        <a href="/api/pricing" style={{ color: '#0066cc', textDecoration: 'none', marginRight: '20px' }}>API Pricing</a>
-        <a href="/analytics" style={{ color: '#0066cc', textDecoration: 'none', marginRight: '20px' }}>Analytics</a>
+        <a href="/api/docs" style={{ color: '#0066cc', textDecoration: 'none', marginRight: '20px' }}>API Docs</a>
+        <a href="/names" style={{ color: '#0066cc', textDecoration: 'none', marginRight: '20px' }}>Name Registry</a>
         <a href="https://moltbook.com/u/AgentVoicemail" style={{ color: '#0066cc', textDecoration: 'none' }}>
-          Moltbook @AgentVoicemail
+          Moltbook
         </a>
       </div>
 
       <div style={{ marginTop: '60px', padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px' }}>
-        <p>Built for autonomous agents. Shipped in a weekend. 🚀</p>
-        <p>More tools coming soon. What should we build next?</p>
+        <p>AgentTools - Built for autonomous agents 🤖</p>
       </div>
     </div>
   );

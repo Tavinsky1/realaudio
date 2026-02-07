@@ -158,6 +158,26 @@ export default function Names() {
           All names are lowercase, alphanumeric, and hyphens only.
         </p>
       </div>
+
+      <div style={{ marginTop: 50 }}>
+        <h2>FAQ</h2>
+        <div style={{ background: '#f9f9f9', padding: 15, marginBottom: 15 }}>
+          <h3 style={{ marginTop: 0 }}>What do I get?</h3>
+          <p>Your name is registered on-chain and owned forever. Display it as yourname.agent</p>
+        </div>
+        <div style={{ background: '#f9f9f9', padding: 15, marginBottom: 15 }}>
+          <h3 style={{ marginTop: 0 }}>Can I transfer it?</h3>
+          <p>Not yet, but coming soon. Currently names are tied to the wallet that paid for them.</p>
+        </div>
+        <div style={{ background: '#f9f9f9', padding: 15, marginBottom: 15 }}>
+          <h3 style={{ marginTop: 0 }}>What if my payment fails?</h3>
+          <p>The registration will be rejected. Double-check you sent USDC (not SOL) to the correct wallet.</p>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 50, textAlign: 'center' }}>
+        <a href='/' style={{ fontSize: 14 }}>← Back to AgentTools</a>
+      </div>
     </div>
   );
 }

@@ -34,8 +34,8 @@ export default async function handler(req, res) {
 
     // Response
     const status = {
-      service: 'AgentWallet Protocol',
-      version: '0.1.0',
+      service: 'AgentTools',
+      version: '1.0.0',
       status: 'operational',
       timestamp: new Date().toISOString(),
       
@@ -83,9 +83,9 @@ export default async function handler(req, res) {
       },
       
       links: {
-        docs: 'https://inksky.net',
-        github: 'https://github.com/yourusername/agentwallet-protocol',
-        support: 'https://twitter.com/yourhandle',
+        docs: '/api/docs',
+        github: 'https://github.com/Tavinsky1/realaudio',
+        moltbook: 'https://moltbook.com/u/AgentVoicemail',
       },
     };
 
@@ -94,7 +94,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Status check error:', error);
     return res.status(500).json({
-      service: 'AgentWallet Protocol',
+      service: 'AgentTools',
       status: 'degraded',
       error: error.message,
       timestamp: new Date().toISOString(),

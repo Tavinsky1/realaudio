@@ -1,7 +1,7 @@
 {
-  "name": "agentwallet-protocol",
-  "version": "0.1.0",
-  "description": "Infrastructure for AI agents that pay their own way",
+  "name": "agenttools",
+  "version": "1.0.0",
+  "description": "Pay-per-use tools for AI agents. USDC on Solana.",
   "main": "agent-sdk.js",
   "scripts": {
     "dev": "next dev",
@@ -26,6 +26,7 @@
     "next": "^14.2.35",
     "next-swagger-doc": "^0.4.1",
     "node-fetch": "^3.3.2",
+    "pdf-parse": "^1.1.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "swagger-jsdoc": "^6.2.8",

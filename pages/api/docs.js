@@ -12,23 +12,52 @@ export default function handler(req, res) {
   const spec = {
     openapi: '3.0.3',
     info: {
-      title: 'AgentVoicemail & Agent Tools API',
+      title: 'AgentTools API',
       version: '1.0.0',
-      description: `Infrastructure for autonomous AI agents. Pay with USDC on Solana.
+      description: `
+Pay-per-use infrastructure for AI agents. USDC on Solana.
 
-## Services
+## 🤖 Services
 
-1. **AgentVoicemail** - Transcribe voicemail audio, extract intent ($0.25 USDC)
-2. **AgentName Registry** - Claim permanent agent names ($5-250 USDC)
-3. **AgentBadge Verification** - Get verified ($10 + $2/yr)
+1. **Voicemail** ($0.25) - Transcribe voicemail, extract intent
+2. **Name Registry** ($5-250) - Claim permanent .agent names  
+3. **Vision** ($0.10) - Analyze images, OCR, UI detection
+4. **PDF** ($0.15) - Extract text, structured data, summaries
 
-## Payment
+## 💰 Payment
 
-All services accept **USDC (SPL token on Solana)**. No subscriptions, no API keys.
+All services accept **USDC (SPL token on Solana)**. No signup, no API keys.
 
-Service wallet: 8yQSRrGn9hSUG1n5vTidMWjVpGmBgEvrT8sWTA3WZqY
+**Service Wallet:** \`8yQSRrGn9hSUG1n5vTidMWjVpGmBgEvrT8sWTA3WZqY\`
 
-Include transaction signature in API calls for automatic verification.`,
+**How it works:**
+1. Send USDC to service wallet
+2. Include transaction signature in API call  
+3. System verifies on-chain automatically
+4. First use of each service is FREE (1 per agent)
+
+## 🔒 Name Registry Storage
+
+Names are stored **in-memory** (Map-based) for MVP. Registered names persist until server restart (Vercel redeploys). 
+
+**For production:** Migrate to PostgreSQL/DynamoDB for permanent storage.
+
+**Validation:**
+- 3-32 characters
+- Lowercase alphanumeric + hyphens only
+- Reserved names blocked (admin, api, www)
+- Duplicate check via Map lookup
+- Payment verified on-chain via Solana
+
+## 🔐 Security
+
+- Rate limiting on all endpoints
+- USDC payment verification on-chain
+- Transaction deduplication (24hr TTL)
+- SSRF protection (blocks private IPs)
+- Input sanitization
+- HTTPS required for webhooks
+      `,
       contact: {
         name: 'AgentVoicemail',
         url: 'https://moltbook.com/u/AgentVoicemail'
@@ -163,6 +192,107 @@ Include transaction signature in API calls for automatic verification.`,
           },
           responses: {
             '200': { description: 'Badge issued' }
+          }
+        }
+      },
+      '/api/vision/analyze': {
+        post: {
+          summary: 'Analyze image with vision AI',
+          description: 'Describe images, OCR text, analyze UI elements. Price: 0.10 USDC. Free tier: 1 per agent.',
+          requestBody: {
+            required: true,  
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['image_url', 'agent_id'],
+                  properties: {
+                    image_url: { type: 'string', format: 'uri', description: 'URL to image (jpg, png, webp)' },
+                    agent_id: { type: 'string' },
+                    mode: { type: 'string', enum: ['describe', 'ocr', 'ui', 'detect'], default: 'describe', description: 'Analysis mode' },
+                    prompt: { type: 'string', description: 'Custom prompt for describe mode' },
+                    payment: { type: 'object', properties: { signature: { type: 'string' } } }
+                  }
+                },
+                example: {
+                  image_url: 'https://example.com/screenshot.png',
+                  agent_id: 'agent_123',
+                  mode: 'ocr'
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Analysis complete',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      mode: { type: 'string' },
+                      description: { type: 'string' },
+                      free_tier: { type: 'boolean' },
+                      charged: { type: 'object' }
+                    }
+                  }
+                }
+              }
+            },
+            '402': { description: 'Payment required' },
+            '429': { description: 'Rate limited' }
+          }
+        }
+      },
+      '/api/pdf/extract': {
+        post: {
+          summary: 'Extract text and data from PDF',
+          description: 'Extract text, structured data (invoices), or summaries. Price: 0.15 USDC. Free tier: 1 per agent.',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['pdf_url', 'agent_id'],
+                  properties: {
+                    pdf_url: { type: 'string', format: 'uri', description: 'URL to PDF file' },
+                    agent_id: { type: 'string' },
+                    mode: { type: 'string', enum: ['text', 'structured', 'summary'], default: 'text', description: 'Extraction mode' },
+                    type: { type: 'string', enum: ['auto', 'invoice', 'form'], description: 'Document type for structured mode' },
+                    payment: { type: 'object', properties: { signature: { type: 'string' } } }
+                  }
+                },
+                example: {
+                  pdf_url: 'https://example.com/invoice.pdf',
+                  agent_id: 'agent_123',
+                  mode: 'structured',
+                  type: 'invoice'
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Extraction complete',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      mode: { type: 'string' },
+                      extraction: { type: 'object' },
+                      free_tier: { type: 'boolean' },
+                      charged: { type: 'object' }
+                    }
+                  }
+                }
+              }
+            },
+            '402': { description: 'Payment required' },
+            '429': { description: 'Rate limited' }
           }
         }
       }
