@@ -38,6 +38,10 @@ const rateLimits = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const RATE_LIMIT_MAX = 10;
 
+// Idempotency cache - prevents duplicate processing of same voicemail
+const idempotencyCache = new Map();
+const IDEMPOTENCY_TTL = 5 * 60 * 1000; // 5 minutes
+
 function checkRateLimit(agentId) {
   const now = Date.now();
   const windowStart = now - RATE_LIMIT_WINDOW;
@@ -55,6 +59,37 @@ function checkRateLimit(agentId) {
   requests.push(now);
   rateLimits.set(agentId, requests);
   return { allowed: true };
+}
+
+function getIdempotencyKey(audioUrl, agentId) {
+  return `${agentId}:${audioUrl}`;
+}
+
+function checkIdempotency(audioUrl, agentId) {
+  const key = getIdempotencyKey(audioUrl, agentId);
+  const now = Date.now();
+  
+  // Clean expired entries
+  for (const [k, v] of idempotencyCache.entries()) {
+    if (now - v.timestamp > IDEMPOTENCY_TTL) {
+      idempotencyCache.delete(k);
+    }
+  }
+  
+  const cached = idempotencyCache.get(key);
+  if (cached) {
+    return { isDuplicate: true, previousResponse: cached.response };
+  }
+  
+  return { isDuplicate: false };
+}
+
+function cacheResponse(audioUrl, agentId, response) {
+  const key = getIdempotencyKey(audioUrl, agentId);
+  idempotencyCache.set(key, {
+    response,
+    timestamp: Date.now()
+  });
 }
 
 export default async function handler(req, res) {
@@ -93,6 +128,16 @@ export default async function handler(req, res) {
         error: 'RATE_LIMITED',
         message: 'Too many requests. Maximum 10 per minute per agent.',
         retry_after: `${rateCheck.retryAfter}s`,
+      });
+    }
+
+    // Idempotency check - prevent duplicate processing
+    const idempotencyCheck = checkIdempotency(audio_url, agent_id);
+    if (idempotencyCheck.isDuplicate) {
+      return res.status(200).json({
+        ...idempotencyCheck.previousResponse,
+        idempotent: true,
+        message: 'Duplicate request detected. Returning cached response.'
       });
     }
 
@@ -241,7 +286,7 @@ export default async function handler(req, res) {
     // Start processing (don't await, return immediately)
     processAndNotify();
 
-    return res.status(202).json({
+    const response = {
       status: 'queued',
       message: 'Voicemail processing started',
       free_tier: isFreeTier,
@@ -257,7 +302,12 @@ export default async function handler(req, res) {
         pricing: '/api/pricing',
         status: '/api/status',
       }
-    });
+    };
+
+    // Cache response for idempotency
+    cacheResponse(audio_url, agent_id, response);
+
+    return res.status(202).json(response);
 
   } catch (error) {
     console.error('Process voicemail error:', error);
