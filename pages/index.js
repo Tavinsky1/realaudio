@@ -43,7 +43,7 @@ result = client.process_voicemail(url, webhook)`}
       </pre>
       
       <p style={{ marginTop: 40, color: '#666' }}>
-        <a href="/agent_sdk.py" download>Download SDK</a>
+        <a href="/agent_sdk.py" download>Download SDK</a> | <a href="/names">Get Agent Name</a>
       </p>
     </div>
   );

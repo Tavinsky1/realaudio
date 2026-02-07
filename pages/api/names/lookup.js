@@ -1,47 +1,41 @@
 /**
- * GET /api/names/lookup?name=jarvis
+ * GET /api/names/lookup?name=xyz
  * 
- * Look up an agent name registration
+ * Lookup registered name
  */
 
 const { registry } = require('../../../lib/agent-names');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { name } = req.query;
 
   if (!name) {
     return res.status(400).json({
-      error: 'MISSING_PARAMETER',
-      message: 'name parameter is required'
+      error: 'NAME_REQUIRED',
+      message: 'Provide a name to lookup',
     });
   }
 
-  try {
-    const result = registry.lookup(name);
+  const registration = registry.lookupName(name);
 
-    if (!result.found) {
-      return res.status(404).json({
-        error: 'NAME_NOT_FOUND',
-        message: `Name '${name}' is not registered`
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      name: result.name,
-      display_name: `${result.name}.agent`,
-      owner: result.owner,
-      registered_at: result.registered_at,
-      reserved: result.reserved,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      error: 'LOOKUP_FAILED',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Lookup failed'
+  if (!registration) {
+    return res.status(404).json({
+      error: 'NAME_NOT_FOUND',
+      message: 'Name not registered',
+      available: registry.isAvailable(name),
     });
   }
+
+  return res.json({
+    name: registration.name,
+    displayName: registration.displayName,
+    owner: registration.owner,
+    registeredAt: registration.registeredAt,
+    pricePaid: registration.pricePaid,
+    expiresAt: registration.expiresAt, // null = forever
+  });
 }

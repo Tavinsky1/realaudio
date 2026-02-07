@@ -1,103 +1,62 @@
 /**
  * POST /api/names/register
  * 
- * Register an agent name (after USDC payment)
- * 
- * Request:
- * {
- *   "name": "jarvis",
- *   "owner": "agent_id or wallet",
- *   "payment": {
- *     "signature": "solana_tx_signature"
- *   }
- * }
+ * Register an agent name
  */
 
+const { PublicKey } = require('@solana/web3.js');
 const { registry } = require('../../../lib/agent-names');
-const { USDCPaymentVerifier, SERVICE_WALLET } = require('../../../lib/solana');
-const { applyRateLimit } = require('../../../lib/rate-limiter');
-
-const paymentVerifier = new USDCPaymentVerifier();
-
-// Rate limit: 5 registrations per hour per IP
-const RATE_LIMIT = { maxRequests: 5, windowMs: 3600000 };
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
-  }
-
-  // Apply rate limiting
-  const allowed = applyRateLimit(req, res, RATE_LIMIT);
-  if (!allowed) {
-    return res.status(429).json({
-      error: 'RATE_LIMITED',
-      message: 'Too many registration attempts. Maximum 5 per hour.',
-    });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { name, owner, payment } = req.body;
+    const { name, owner_wallet, payment_tx } = req.body;
 
-    // Validation
-    if (!name || !owner || !payment?.signature) {
+    if (!name || !owner_wallet || !payment_tx) {
       return res.status(400).json({
-        error: 'MISSING_PARAMETERS',
-        message: 'name, owner, and payment.signature are required'
+        error: 'MISSING_FIELDS',
+        message: 'Required: name, owner_wallet, payment_tx',
       });
     }
 
-    // Check availability
-    const availability = registry.isAvailable(name);
-    if (!availability.available) {
+    // Validate wallet address
+    try {
+      new PublicKey(owner_wallet);
+    } catch {
       return res.status(400).json({
-        error: 'NAME_UNAVAILABLE',
-        message: availability.reason
+        error: 'INVALID_WALLET',
+        message: 'Invalid Solana wallet address',
       });
     }
 
-    // Get pricing
-    const pricing = registry.getPrice(name);
-    const expectedAmount = pricing.amount;
+    // Register
+    const result = await registry.registerName(name, owner_wallet, payment_tx);
 
-    // Verify USDC payment
-    const verification = await paymentVerifier.verifyPayment(
-      payment.signature,
-      SERVICE_WALLET,
-      expectedAmount
-    );
-
-    if (!verification.valid) {
-      return res.status(402).json({
-        error: 'PAYMENT_INVALID',
-        message: verification.error,
-        expected_amount: expectedAmount,
-        currency: 'USDC',
-        service_wallet: SERVICE_WALLET.toBase58(),
+    if (!result.success) {
+      return res.status(400).json({
+        error: 'REGISTRATION_FAILED',
+        errors: result.errors || [result.error],
+        message: result.message,
       });
     }
-
-    // Register the name
-    const result = registry.register(name, owner, payment.signature);
 
     return res.status(201).json({
       success: true,
-      message: `Name registered: ${name}.agent`,
       name: result.name,
-      display_name: `${result.name}.agent`,
       owner: result.owner,
-      registered_at: result.registered_at,
-      display_url: result.display_url,
-      payment: {
-        amount: expectedAmount,
-        currency: 'USDC',
-        tx_signature: payment.signature,
-      },
+      price: result.price,
+      tier: result.tier,
+      message: `Congratulations! You now own ${result.name}.agent`,
     });
+
   } catch (error) {
+    console.error('Registration error:', error);
     return res.status(500).json({
-      error: 'REGISTRATION_FAILED',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Registration failed'
+      error: 'INTERNAL_ERROR',
+      message: 'Registration failed',
     });
   }
 }

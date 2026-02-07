@@ -1,40 +1,43 @@
 /**
- * GET /api/names/check?name=jarvis
+ * GET /api/names/check?name=xyz
  * 
- * Check if agent name is available and get pricing
+ * Check name availability and price
  */
 
 const { registry } = require('../../../lib/agent-names');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { name } = req.query;
 
   if (!name) {
     return res.status(400).json({
-      error: 'MISSING_PARAMETER',
-      message: 'name parameter is required'
+      error: 'NAME_REQUIRED',
+      message: 'Provide a name to check',
     });
   }
 
-  try {
-    const availability = registry.isAvailable(name);
-    const pricing = registry.getPrice(name);
+  const validation = registry.validateName(name);
+  const pricing = registry.getPrice(name);
+  const isAvailable = registry.isAvailable(name);
+  const suggestions = !isAvailable ? registry.searchAvailable(name) : [];
 
-    return res.status(200).json({
-      name: name.toLowerCase().trim(),
-      available: availability.available,
-      reason: availability.reason || null,
-      price: availability.available ? pricing : null,
-      display_name: `${name.toLowerCase().trim()}.agent`,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      error: 'INTERNAL_ERROR',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Check failed'
-    });
-  }
+  return res.json({
+    name: name,
+    normalized: validation.normalized,
+    available: isAvailable,
+    valid: validation.valid,
+    errors: validation.errors,
+    pricing: {
+      price: pricing.price,
+      currency: 'USDC',
+      usd_equiv: `$${pricing.price}`,
+      tier: pricing.tier,
+      label: pricing.label,
+    },
+    suggestions: suggestions,
+  });
 }
