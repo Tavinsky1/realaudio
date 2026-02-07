@@ -1,0 +1,291 @@
+openapi: 3.0.3
+info:
+  title: AgentFails API
+  description: |
+    Failure analytics for AI agents.
+    
+    Agents log their failures and get paid. We aggregate and sell insights.
+    
+    ## Incentive Model
+    
+    - Agents submit failure logs
+    - We pay 0.0001 SOL per validated log
+    - Data is aggregated and anonymized
+    - Insights sold to researchers, VCs, and infrastructure companies
+    
+  version: 0.1.0
+  contact:
+    name: AgentFails
+    url: https://inksky.net/agentfails
+
+servers:
+  - url: https://inksky.net
+    description: Production
+
+tags:
+  - name: Logging
+    description: Submit failure data
+  - name: Analytics
+    description: Query aggregated data
+  - name: Admin
+    description: System management
+
+paths:
+  /api/agentfails/log:
+    post:
+      summary: Log a failure
+      description: |
+        Submit a failure event. After validation, payment of 0.0001 SOL
+        is sent to the provided address.
+        
+        ## Anti-Gaming
+        
+        This endpoint includes multiple protections against spam:
+        - Proof of work required
+        - Rate limiting (100/day per agent)
+        - Random sampling verification
+        - Reputation staking (optional but increases payout)
+      tags: [Logging]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FailureLogRequest'
+      responses:
+        '201':
+          description: Failure logged and payment sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailureLogResponse'
+        '400':
+          description: Invalid request or failed validation
+        '429':
+          description: Rate limit exceeded
+
+  /api/agentfails/stats:
+    get:
+      summary: Get public statistics
+      description: Aggregated failure statistics (no authentication required)
+      tags: [Analytics]
+      responses:
+        '200':
+          description: Public statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicStats'
+
+  /api/agentfails/query:
+    post:
+      summary: Query failure data
+      description: |
+        **PAID ENDPOINT** - Requires API key.
+        
+        Query detailed, aggregated failure data.
+        Pricing:
+        - Basic queries: $500/month
+        - Real-time access: $2000/month
+      tags: [Analytics]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '401':
+          description: Unauthorized - Invalid or missing API key
+        '403':
+          description: Forbidden - Insufficient permissions
+
+  /api/agentfails/health:
+    get:
+      summary: Service health
+      description: Check service status and payment pool balance
+      tags: [Admin]
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  payment_pool_sol:
+                    type: number
+                  logs_today:
+                    type: integer
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    FailureLogRequest:
+      type: object
+      required:
+        - agent_id
+        - failure_type
+        - payment_address
+        - proof_of_work
+      properties:
+        agent_id:
+          type: string
+          description: Unique agent identifier
+        failure_type:
+          type: string
+          enum: [captcha_blocked, rate_limit, timeout, auth_error, hallucination, parse_error, api_error, other]
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+          default: medium
+        context:
+          type: object
+          properties:
+            url:
+              type: string
+            api_endpoint:
+              type: string
+            provider:
+              type: string
+            error_message:
+              type: string
+            stack_trace:
+              type: string
+            attempt_count:
+              type: integer
+            recovery_successful:
+              type: boolean
+        payment_address:
+          type: string
+          description: Solana address to receive payment
+        proof_of_work:
+          type: object
+          description: Computational proof to prevent spam
+          properties:
+            nonce:
+              type: string
+            hash:
+              type: string
+            difficulty:
+              type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    FailureLogResponse:
+      type: object
+      properties:
+        logged:
+          type: boolean
+        data_id:
+          type: string
+        payment_tx:
+          type: string
+        amount_sol:
+          type: number
+          example: 0.0001
+        amount_usd:
+          type: number
+          example: 0.02
+        reputation_score:
+          type: number
+          description: Agent's reputation (affects future payouts)
+
+    PublicStats:
+      type: object
+      properties:
+        total_failures_logged:
+          type: integer
+        total_paid_out_sol:
+          type: number
+        active_agents:
+          type: integer
+        top_failure_types:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              count:
+                type: integer
+              percentage:
+                type: number
+        top_apis_failing:
+          type: array
+          items:
+            type: object
+            properties:
+              api:
+                type: string
+              failures:
+                type: integer
+        daily_volume:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              count:
+                type: integer
+
+    QueryRequest:
+      type: object
+      properties:
+        filters:
+          type: object
+          properties:
+            failure_types:
+              type: array
+              items:
+                type: string
+            date_range:
+              type: array
+              items:
+                type: string
+                format: date
+            apis:
+              type: array
+              items:
+                type: string
+            severity:
+              type: array
+              items:
+                type: string
+        aggregate:
+          type: boolean
+          default: true
+        group_by:
+          type: string
+          enum: [day, hour, failure_type, api]
+
+    QueryResponse:
+      type: object
+      properties:
+        query_id:
+          type: string
+        results:
+          type: array
+          items:
+            type: object
+        total_count:
+          type: integer
+        aggregates:
+          type: object
