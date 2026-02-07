@@ -1,14 +1,10 @@
-# AgentWallet Python SDK Dependencies
+# AgentVoicemail Python SDK Dependencies
 
 # Solana
 solders>=0.21.0
 solana>=0.30.0
+spl-token>=0.2.0
 base58>=2.1.0
 
 # HTTP
 requests>=2.31.0
-
-# Optional: For webhook server examples
-# flask>=3.0.0
-# fastapi>=0.100.0
-# uvicorn>=0.24.0

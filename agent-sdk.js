@@ -1,26 +1,31 @@
 /**
- * AgentWallet SDK
+ * AgentVoicemail SDK (JavaScript)
  * 
- * Drop-in client for AI agents to use AgentWallet Protocol services
+ * Drop-in client for AI agents to use AgentVoicemail
  * 
  * Usage:
- *   const { AgentWallet } = require('./agent-sdk');
- *   const wallet = new AgentWallet(agentKeypair);
+ *   const { AgentVoicemailClient } = require('./agent-sdk');
+ *   const wallet = new AgentVoicemailClient(agentKeypair);
  *   await wallet.payAndProcessVoicemail(audioUrl, webhookUrl);
  */
 
 const { 
   Connection, 
   PublicKey, 
-  SystemProgram, 
   Transaction,
-  LAMPORTS_PER_SOL 
 } = require('@solana/web3.js');
 
-const DEFAULT_ENDPOINT = 'https://inksky.net';
-const SERVICE_WALLET = new PublicKey('8yQSRrGn9hSUG1n5vTidMWjVpGmBgEvrT8sWTA3WZqY');
+const { 
+  createTransferInstruction, 
+  getAssociatedTokenAddress,
+  TOKEN_PROGRAM_ID,
+} = require('@solana/spl-token');
 
-class AgentWallet {
+const DEFAULT_ENDPOINT = 'https://agentvoicemail.com';
+const SERVICE_WALLET = new PublicKey('8yQSRrGn9hSUG1n5vTidMWjVpGmBgEvrT8sWTA3WZqY');
+const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+
+class AgentVoicemailClient {
   /**
    * @param {Keypair} keypair - Solana keypair for the agent
    * @param {Object} options
@@ -36,39 +41,68 @@ class AgentWallet {
     );
   }
 
-  /**
-   * Get agent's wallet address
-   */
   get address() {
     return this.keypair.publicKey.toString();
   }
 
   /**
-   * Check balance
-   * @returns {Promise<number>} SOL balance
+   * Get agent's USDC balance
+   * @returns {Promise<number>} USDC balance
    */
-  async getBalance() {
-    const balance = await this.connection.getBalance(this.keypair.publicKey);
-    return balance / LAMPORTS_PER_SOL;
+  async getUSDCBalance() {
+    try {
+      const tokenAccount = await getAssociatedTokenAddress(
+        USDC_MINT,
+        this.keypair.publicKey
+      );
+      const balance = await this.connection.getTokenAccountBalance(tokenAccount);
+      return parseFloat(balance.value.amount) / 1_000_000;
+    } catch {
+      return 0;
+    }
   }
 
   /**
-   * Send payment to service
-   * @param {number} amountSol - Amount in SOL
+   * Send USDC payment to service
+   * @param {number} amountUSDC - Amount in USDC
    * @returns {Promise<string>} Transaction signature
    */
-  async sendPayment(amountSol) {
-    const lamports = amountSol * LAMPORTS_PER_SOL;
+  async sendUSDC(amountUSDC) {
+    const amount = amountUSDC * 1_000_000; // 6 decimals
     
-    const tx = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: this.keypair.publicKey,
-        toPubkey: SERVICE_WALLET,
-        lamports,
-      })
+    // Get token accounts
+    const senderTokenAccount = await getAssociatedTokenAddress(
+      USDC_MINT,
+      this.keypair.publicKey
+    );
+    
+    const recipientTokenAccount = await getAssociatedTokenAddress(
+      USDC_MINT,
+      SERVICE_WALLET
     );
 
-    const signature = await this.connection.sendTransaction(tx, [this.keypair]);
+    // Create transfer instruction
+    const transferIx = createTransferInstruction(
+      senderTokenAccount,
+      recipientTokenAccount,
+      this.keypair.publicKey,
+      amount
+    );
+
+    // Create and sign transaction
+    const transaction = new Transaction().add(transferIx);
+    transaction.feePayer = this.keypair.publicKey;
+    
+    const { blockhash } = await this.connection.getLatestBlockhash();
+    transaction.recentBlockhash = blockhash;
+    
+    transaction.sign(this.keypair);
+
+    // Send transaction
+    const signature = await this.connection.sendRawTransaction(
+      transaction.serialize()
+    );
+    
     await this.connection.confirmTransaction(signature, 'confirmed');
     
     return signature;
@@ -79,20 +113,19 @@ class AgentWallet {
    * @param {string} audioUrl - URL to audio file
    * @param {string} webhookUrl - Callback URL
    * @param {Object} options
-   * @param {boolean} options.priority - Skip queue (2x price)
-   * @returns {Promise<Object>} Job status
+   * @param {boolean} options.priority - Skip queue (2x price = 0.50 USDC)
    */
   async processVoicemail(audioUrl, webhookUrl, options = {}) {
-    const price = options.priority ? 0.002 : 0.001;
+    const price = options.priority ? 0.50 : 0.25;
     
     // Check balance first
-    const balance = await this.getBalance();
+    const balance = await this.getUSDCBalance();
     if (balance < price) {
-      throw new Error(`Insufficient balance: ${balance} SOL, need ${price} SOL`);
+      throw new Error(`Insufficient USDC balance: ${balance}, need ${price}`);
     }
 
     // Send payment
-    const signature = await this.sendPayment(price);
+    const signature = await this.sendUSDC(price);
 
     // Make API request
     const response = await fetch(`${this.endpoint}/api/voicemail/process`, {
@@ -102,7 +135,10 @@ class AgentWallet {
         audio_url: audioUrl,
         webhook_url: webhookUrl,
         agent_id: this.address,
-        payment: { signature },
+        payment: { 
+          signature,
+          token: 'USDC',
+        },
         priority: options.priority,
       }),
     });
@@ -138,14 +174,11 @@ class AgentWallet {
  */
 class AutonomousAgent {
   constructor(keypair, options = {}) {
-    this.wallet = new AgentWallet(keypair, options);
-    this.budget = options.budget || 0.1; // Default 0.1 SOL budget
+    this.wallet = new AgentVoicemailClient(keypair, options);
+    this.budget = options.budget || 10.0; // Default 10 USDC budget
     this.spent = 0;
   }
 
-  /**
-   * Execute a task with budget checking
-   */
   async execute(task, maxCost) {
     if (this.spent + maxCost > this.budget) {
       return {
@@ -166,19 +199,17 @@ class AutonomousAgent {
     }
   }
 
-  /**
-   * Process voicemail within budget
-   */
   async handleVoicemail(audioUrl, webhookUrl) {
     return this.execute(
       () => this.wallet.processVoicemail(audioUrl, webhookUrl),
-      0.001
+      0.25
     );
   }
 }
 
 module.exports = {
-  AgentWallet,
+  AgentVoicemailClient,
   AutonomousAgent,
   SERVICE_WALLET: SERVICE_WALLET.toString(),
+  USDC_MINT: USDC_MINT.toString(),
 };

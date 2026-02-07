@@ -2,14 +2,7 @@
  * POST /api/voicemail/process
  * 
  * Agents submit voicemail audio for processing
- * Payment: Dynamic SOL price (~$0.25 USD)
- * 
- * SECURITY HARDENED VERSION:
- * - Audio validation before processing
- * - Multi-RPC fallback for Solana
- * - Webhook retry queue
- * - Rate limiting
- * - Reduced free tier (1 instead of 3)
+ * Payment: 0.25 USDC (stable, no volatility)
  * 
  * Request:
  * {
@@ -18,13 +11,13 @@
  *   "agent_id": "agent_unique_id",
  *   "payment": {
  *     "signature": "solana_tx_signature",
- *     "sender": "agent_wallet_pubkey"
+ *     "token": "USDC"
  *   },
  *   "priority": false
  * }
  */
 
-const { PublicKey, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+const { USDCPaymentVerifier, PRICE_PER_VOICEMAIL_USDC, SERVICE_WALLET } = require('../../../lib/solana');
 const { oracle } = require('../../../lib/pricing');
 const { dedup } = require('../../../lib/dedup');
 const { validator } = require('../../../lib/validator');
@@ -32,47 +25,36 @@ const { audioValidator } = require('../../../lib/audio-validator');
 const { rpcManager } = require('../../../lib/solana-rpc');
 const { webhookQueue } = require('../../../lib/webhook-queue');
 const { VoicemailProcessor } = require('../../../lib/voicemail');
-const { analytics } = require('../../../lib/analytics');
-const { applyRateLimit, getClientIdentifier } = require('../../../lib/rate-limiter');
 
 // Configuration
-const SERVICE_WALLET = new PublicKey(process.env.SERVICE_WALLET || 'YOUR_SERVICE_WALLET_HERE');
-const FREE_TIER_LIMIT = 1; // REDUCED from 3 to 1
+const FREE_TIER_LIMIT = 1;
 
 // Services
+const paymentVerifier = new USDCPaymentVerifier();
 const voicemailProcessor = new VoicemailProcessor();
 
-// Rate limiting configuration
-// Per-IP rate limit: 10 requests per minute (global protection)
-// Per-agent rate limit: 5 requests per minute (agent-specific protection)
-const IP_RATE_LIMIT = { maxRequests: 10, windowMs: 60000 };
-const AGENT_RATE_LIMIT = { maxRequests: 5, windowMs: 60000 };
+// Rate limiting
+const rateLimits = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = 10;
 
-const agentRateLimits = new Map();
-
-function checkAgentRateLimit(agentId) {
+function checkRateLimit(agentId) {
   const now = Date.now();
-  const record = agentRateLimits.get(agentId);
+  const windowStart = now - RATE_LIMIT_WINDOW;
   
-  if (!record) {
-    const resetTime = now + AGENT_RATE_LIMIT.windowMs;
-    agentRateLimits.set(agentId, { count: 1, resetTime });
-    return { allowed: true, remaining: AGENT_RATE_LIMIT.maxRequests - 1 };
+  if (!rateLimits.has(agentId)) {
+    rateLimits.set(agentId, []);
   }
   
-  if (now > record.resetTime) {
-    const resetTime = now + AGENT_RATE_LIMIT.windowMs;
-    agentRateLimits.set(agentId, { count: 1, resetTime });
-    return { allowed: true, remaining: AGENT_RATE_LIMIT.maxRequests - 1 };
+  const requests = rateLimits.get(agentId).filter(t => t > windowStart);
+  
+  if (requests.length >= RATE_LIMIT_MAX) {
+    return { allowed: false, retryAfter: 60 };
   }
   
-  record.count++;
-  
-  if (record.count > AGENT_RATE_LIMIT.maxRequests) {
-    return { allowed: false, retryAfter: Math.ceil((record.resetTime - now) / 1000) };
-  }
-  
-  return { allowed: true, remaining: AGENT_RATE_LIMIT.maxRequests - record.count };
+  requests.push(now);
+  rateLimits.set(agentId, requests);
+  return { allowed: true };
 }
 
 export default async function handler(req, res) {
@@ -84,15 +66,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // IP-based rate limiting (global protection against DDoS)
-    const ipAllowed = applyRateLimit(req, res, IP_RATE_LIMIT);
-    if (!ipAllowed) {
-      return res.status(429).json({
-        error: 'RATE_LIMITED',
-        message: 'Too many requests from your IP. Maximum 10 per minute.',
-      });
-    }
-
     // Validate request body
     const validation = await validator.validateRequest(req.body);
     if (!validation.valid) {
@@ -113,21 +86,21 @@ export default async function handler(req, res) {
       });
     }
 
-    // Agent-based rate limiting (per-agent protection)
-    const agentRateCheck = checkAgentRateLimit(agent_id);
-    if (!agentRateCheck.allowed) {
+    // Rate limiting
+    const rateCheck = checkRateLimit(agent_id);
+    if (!rateCheck.allowed) {
       return res.status(429).json({
         error: 'RATE_LIMITED',
-        message: 'Too many requests for this agent. Maximum 5 per minute per agent.',
-        retry_after: `${agentRateCheck.retryAfter}s`,
+        message: 'Too many requests. Maximum 10 per minute per agent.',
+        retry_after: `${rateCheck.retryAfter}s`,
       });
     }
 
-    // Get current pricing
+    // Get current pricing (fixed USDC)
     const serviceType = priority ? 'voicemail_priority' : 'voicemail';
     const pricing = await oracle.getPrice(serviceType);
 
-    // Track free tier usage (in-memory, resets on deploy)
+    // Track free tier usage
     const used = (global.agentUsage?.get(agent_id) || 0);
     const isFreeTier = used < FREE_TIER_LIMIT;
 
@@ -138,7 +111,14 @@ export default async function handler(req, res) {
           error: 'PAYMENT_REQUIRED',
           message: `Free tier exhausted (${FREE_TIER_LIMIT} voicemail). Payment required.`,
           pricing,
-          service_wallet: SERVICE_WALLET.toString(),
+          service_wallet: SERVICE_WALLET,
+          payment_instructions: {
+            amount: PRICE_PER_VOICEMAIL_USDC,
+            currency: 'USDC',
+            network: 'Solana',
+            recipient: SERVICE_WALLET,
+            note: 'Send USDC (SPL token), not SOL',
+          },
           free_tier_used: used,
         });
       }
@@ -151,7 +131,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // Verify on Solana with fallback RPCs
+      // Verify USDC payment
       try {
         const tx = await rpcManager.verifyTransaction(payment.signature);
 
@@ -171,32 +151,27 @@ export default async function handler(req, res) {
           });
         }
 
-        // Verify recipient
-        const accountKeys = tx.transaction.message.accountKeys.map(k => k.toString());
-        const recipientIndex = accountKeys.indexOf(SERVICE_WALLET.toString());
-
-        if (recipientIndex === -1) {
+        // Parse and verify USDC amount
+        const usdcTransfer = paymentVerifier.parseUSDCTransfer(tx, SERVICE_WALLET);
+        
+        if (!usdcTransfer) {
           return res.status(402).json({
-            error: 'INVALID_RECIPIENT',
-            message: 'Payment was not sent to the correct service wallet.',
-            expected: SERVICE_WALLET.toString(),
+            error: 'NO_USDC_FOUND',
+            message: 'No USDC transfer found in transaction. Did you send SOL instead of USDC?',
+            expected: 'USDC (SPL token)',
+            recipient: SERVICE_WALLET,
           });
         }
 
-        // Verify amount
-        const preBalance = tx.meta.preBalances[recipientIndex];
-        const postBalance = tx.meta.postBalances[recipientIndex];
-        const receivedSol = (postBalance - preBalance) / LAMPORTS_PER_SOL;
-
-        const paymentCheck = oracle.isValidPayment(receivedSol, serviceType, pricing.rate);
+        const paymentCheck = oracle.isValidPayment(usdcTransfer.amount, serviceType);
         
         if (!paymentCheck.valid) {
           return res.status(402).json({
             error: 'INSUFFICIENT_PAYMENT',
             message: 'Payment amount does not match required price.',
-            required: { sol: pricing.sol, usd: pricing.usd },
-            received: receivedSol,
-            tolerance: '5%',
+            required: { usdc: pricing.amount, usd: pricing.usd_equiv },
+            received: usdcTransfer.amount,
+            currency: 'USDC',
           });
         }
 
@@ -204,14 +179,15 @@ export default async function handler(req, res) {
         dedup.add(payment.signature, {
           agent_id,
           service: serviceType,
-          amount: receivedSol,
+          amount: usdcTransfer.amount,
+          currency: 'USDC',
         });
 
       } catch (error) {
         console.error('Payment verification error:', error);
         return res.status(500).json({
           error: 'VERIFICATION_FAILED',
-          message: 'Failed to verify payment on Solana. All RPC endpoints failed.',
+          message: 'Failed to verify payment on Solana.',
         });
       }
     } else {
@@ -222,7 +198,6 @@ export default async function handler(req, res) {
 
     // Queue the job with webhook
     const processAndNotify = async () => {
-      const startTime = Date.now();
       try {
         const result = await voicemailProcessor.processVoicemail({
           audioUrl: audio_url,
@@ -244,34 +219,10 @@ export default async function handler(req, res) {
           }
         );
 
-        // Track successful request in analytics
-        const processingTime = Date.now() - startTime;
-        analytics.trackRequest({
-          agentId: agent_id,
-          success: true,
-          isFree: isFreeTier,
-          amountSol: isFreeTier ? 0 : pricing.sol,
-          processingTime,
-          intent: result.intent,
-          urgency: result.urgency,
-        });
-
         return result;
       } catch (error) {
         console.error('Processing error:', error);
         
-        // Track failed request in analytics
-        const processingTime = Date.now() - startTime;
-        analytics.trackRequest({
-          agentId: agent_id,
-          success: false,
-          isFree: isFreeTier,
-          amountSol: 0,
-          processingTime,
-          error: error.message,
-        });
-        
-        // Notify of failure
         await webhookQueue.storeAndNotify(
           'failed_' + Date.now(),
           agent_id,
@@ -295,13 +246,16 @@ export default async function handler(req, res) {
       message: 'Voicemail processing started',
       free_tier: isFreeTier,
       remaining_free: isFreeTier ? FREE_TIER_LIMIT - used - 1 : 0,
-      charged: isFreeTier ? null : pricing,
+      charged: isFreeTier ? null : {
+        amount: pricing.amount,
+        currency: 'USDC',
+        usd_equiv: pricing.usd_equiv,
+      },
       payment_verified: !isFreeTier,
       eta: priority ? '10s' : '30s',
       _links: {
         pricing: '/api/pricing',
         status: '/api/status',
-        docs: 'https://inksky.net/docs/voicemail',
       }
     });
 

@@ -1,17 +1,7 @@
 """
-AgentWallet Python SDK
+AgentVoicemail Python SDK
 
-Drop-in client for AI agents to use AgentWallet Protocol services.
-Most AI agents are built in Python (LangChain, AutoGPT, etc.)
-
-Usage:
-    from agent_sdk import AgentWallet
-    
-    wallet = AgentWallet(private_key=os.environ["AGENT_PRIVATE_KEY"])
-    result = wallet.process_voicemail(
-        audio_url="https://...",
-        webhook_url="https://..."
-    )
+Drop-in client for AI agents to use AgentVoicemail with USDC payments.
 """
 
 import os
@@ -22,19 +12,23 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
-from solders.system_program import TransferParams, transfer
 from solders.transaction import Transaction
+from solders.system_program import TransferParams
 from solana.rpc.api import Client
 from solana.rpc.commitment import Confirmed
+
+# Token program for SPL tokens (USDC)
+TOKEN_PROGRAM_ID = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+USDC_MINT = Pubkey.from_string("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+SERVICE_WALLET = Pubkey.from_string("8yQSRrGn9hSUG1n5vTidMWjVpGmBgEvrT8sWTA3WZqY")
 
 
 @dataclass
 class PricingInfo:
     """Current pricing information"""
-    sol_usd_rate: float
-    voicemail_sol: float
-    voicemail_usd: float
-    timestamp: str
+    amount: float
+    currency: str
+    usd_equiv: float
 
 
 @dataclass
@@ -48,21 +42,18 @@ class ProcessResult:
     payment_verified: bool
 
 
-class AgentWallet:
+class AgentVoicemailClient:
     """
-    AgentWallet client for autonomous AI agents.
+    AgentVoicemail client for autonomous AI agents.
     
     Handles:
-    - Balance checking
-    - Payment sending
+    - USDC balance checking
+    - USDC payment sending (SPL tokens)
     - Voicemail processing
     - Webhook result retrieval
     """
     
-    DEFAULT_ENDPOINT = "https://inksky.net"
-    SERVICE_WALLET = Pubkey.from_string(
-        os.environ.get("SERVICE_WALLET", "YOUR_SERVICE_WALLET_HERE")
-    )
+    DEFAULT_ENDPOINT = "https://agentvoicemail.com"
     
     def __init__(
         self,
@@ -71,18 +62,18 @@ class AgentWallet:
         rpc_url: Optional[str] = None
     ):
         """
-        Initialize AgentWallet
+        Initialize AgentVoicemail Client
         
         Args:
-            private_key: Base58-encoded private key, or loads from AGENT_PRIVATE_KEY env var
-            endpoint: API endpoint, defaults to https://inksky.net
-            rpc_url: Solana RPC URL, defaults to mainnet-beta
+            private_key: Base58-encoded private key
+            endpoint: API endpoint
+            rpc_url: Solana RPC URL
         """
         if private_key is None:
             private_key = os.environ.get("AGENT_PRIVATE_KEY")
         
         if not private_key:
-            raise ValueError("Private key required. Set AGENT_PRIVATE_KEY env var or pass to constructor.")
+            raise ValueError("Private key required.")
         
         # Load keypair
         secret_key = base58.b58decode(private_key)
@@ -98,11 +89,20 @@ class AgentWallet:
         """Agent's wallet address (public key)"""
         return str(self.keypair.pubkey())
     
-    def get_balance(self) -> float:
-        """Get SOL balance"""
-        response = self.client.get_balance(self.keypair.pubkey())
-        lamports = response.value
-        return lamports / 1_000_000_000  # Convert to SOL
+    def get_usdc_balance(self) -> float:
+        """Get USDC balance"""
+        try:
+            # Find associated token account
+            from spl.token.instructions import get_associated_token_address
+            token_account = get_associated_token_address(
+                self.keypair.pubkey(),
+                USDC_MINT
+            )
+            
+            balance = self.client.get_token_account_balance(token_account)
+            return int(balance.value.amount) / 1_000_000  # USDC has 6 decimals
+        except:
+            return 0.0
     
     def get_pricing(self) -> PricingInfo:
         """Get current pricing from API"""
@@ -110,60 +110,63 @@ class AgentWallet:
         response.raise_for_status()
         data = response.json()
         
+        voicemail = data["prices"]["voicemail"]
         return PricingInfo(
-            sol_usd_rate=data.get("sol_usd_rate", 200),
-            voicemail_sol=data["prices"]["voicemail"]["sol"],
-            voicemail_usd=data["prices"]["voicemail"]["usd"],
-            timestamp=data.get("timestamp", ""),
+            amount=voicemail["amount"],
+            currency=voicemail["currency"],
+            usd_equiv=voicemail["usd_equiv"],
         )
     
-    def get_health(self) -> Dict[str, Any]:
-        """Get API health status"""
-        response = requests.get(f"{self.endpoint}/api/health")
-        response.raise_for_status()
-        return response.json()
-    
-    def send_payment(self, amount_sol: float) -> str:
+    def send_usdc_payment(self, amount_usdc: float) -> str:
         """
-        Send SOL payment to service wallet
+        Send USDC payment to service wallet
         
         Args:
-            amount_sol: Amount in SOL
+            amount_usdc: Amount in USDC (e.g., 0.25)
             
         Returns:
             Transaction signature
         """
-        lamports = int(amount_sol * 1_000_000_000)
-        
-        # Get recent blockhash
-        blockhash_response = self.client.get_latest_blockhash()
-        blockhash = blockhash_response.value.blockhash
-        
-        # Create transfer instruction
-        transfer_ix = transfer(
-            TransferParams(
-                from_pubkey=self.keypair.pubkey(),
-                to_pubkey=self.SERVICE_WALLET,
-                lamports=lamports,
+        try:
+            from spl.token.instructions import (
+                create_transfer_instruction,
+                get_associated_token_address,
             )
-        )
-        
-        # Create and sign transaction
-        transaction = Transaction.new_signed_with_payer(
-            [transfer_ix],
-            self.keypair.pubkey(),
-            [self.keypair],
-            blockhash,
-        )
-        
-        # Send transaction
-        response = self.client.send_transaction(transaction)
-        signature = response.value
-        
-        # Wait for confirmation
-        self.client.confirm_transaction(signature, commitment=Confirmed)
-        
-        return str(signature)
+            
+            amount = int(amount_usdc * 1_000_000)  # 6 decimals
+            
+            # Get token accounts
+            sender_token = get_associated_token_address(
+                self.keypair.pubkey(), USDC_MINT
+            )
+            recipient_token = get_associated_token_address(
+                SERVICE_WALLET, USDC_MINT
+            )
+            
+            # Create transfer instruction
+            transfer_ix = create_transfer_instruction(
+                sender_token,
+                recipient_token,
+                self.keypair.pubkey(),
+                amount,
+            )
+            
+            # Create and send transaction
+            blockhash = self.client.get_latest_blockhash().value.blockhash
+            tx = Transaction.new_signed_with_payer(
+                [transfer_ix],
+                self.keypair.pubkey(),
+                [self.keypair],
+                blockhash,
+            )
+            
+            signature = self.client.send_transaction(tx)
+            self.client.confirm_transaction(signature.value, Confirmed)
+            
+            return str(signature.value)
+            
+        except Exception as e:
+            raise Exception(f"USDC transfer failed: {str(e)}")
     
     def process_voicemail(
         self,
@@ -175,12 +178,12 @@ class AgentWallet:
         """
         Process a voicemail
         
-        Automatically handles free tier and payment if needed.
+        Automatically handles free tier and USDC payment if needed.
         
         Args:
-            audio_url: URL to audio file (mp3, wav, etc.)
+            audio_url: URL to audio file
             webhook_url: Callback URL for results
-            priority: Skip queue for faster processing (2x price)
+            priority: Skip queue for faster processing (0.50 USDC)
             max_retries: Max payment retries
             
         Returns:
@@ -188,9 +191,9 @@ class AgentWallet:
         """
         # Get current pricing
         pricing = self.get_pricing()
-        price_sol = pricing.voicemail_sol * (2 if priority else 1)
+        price_usdc = pricing.amount * (2 if priority else 1)
         
-        print(f"💰 Current price: {price_sol:.6f} SOL (~${pricing.voicemail_usd:.2f} USD)")
+        print(f"💰 Current price: {price_usdc} USDC (${price_usdc} USD)")
         
         # Try without payment first (free tier)
         print("🔄 Attempting request...")
@@ -212,22 +215,24 @@ class AgentWallet:
         
         # If free tier exhausted, pay and retry
         if response.status_code == 402:
-            print(f"⚠️ Payment required: {price_sol:.6f} SOL")
+            print(f"⚠️ Payment required: {price_usdc} USDC")
             
             # Check balance
-            balance = self.get_balance()
-            if balance < price_sol:
+            balance = self.get_usdc_balance()
+            if balance < price_usdc:
                 raise ValueError(
-                    f"Insufficient balance: {balance:.6f} SOL, "
-                    f"need {price_sol:.6f} SOL"
+                    f"Insufficient USDC balance: {balance}, need {price_usdc}"
                 )
             
-            # Send payment
-            signature = self.send_payment(price_sol)
-            print(f"✅ Payment sent: {signature}")
+            # Send USDC payment
+            signature = self.send_usdc_payment(price_usdc)
+            print(f"✅ USDC payment sent: {signature}")
             
             # Retry with payment
-            payload["payment"] = {"signature": signature}
+            payload["payment"] = {
+                "signature": signature,
+                "token": "USDC",
+            }
             
             for attempt in range(max_retries):
                 response = requests.post(
@@ -236,20 +241,22 @@ class AgentWallet:
                     headers={"Content-Type": "application/json"},
                 )
                 
-                if response.status_code != 402:  # Not payment error
+                if response.status_code != 402:
                     break
                 
-                # Wait a bit for transaction to confirm
                 time.sleep(2)
             
             data = response.json()
         
         if not response.ok:
-            raise APIError(f"API Error: {data.get('error')} - {data.get('message')}")
+            raise Exception(f"API Error: {data.get('error')} - {data.get('message')}")
+        
+        print(f"✅ Job queued: {data.get('job_id')}")
+        print(f"📊 Credits remaining: {data.get('remaining_free', 0)}")
         
         return ProcessResult(
-            job_id=data["job_id"],
-            status=data["status"],
+            job_id=data.get("job_id"),
+            status=data.get("status"),
             free_tier=data.get("free_tier", False),
             remaining_free=data.get("remaining_free", 0),
             charged=data.get("charged"),
@@ -259,7 +266,6 @@ class AgentWallet:
     def get_job_status(self, job_id: str) -> Dict[str, Any]:
         """Check status of a job"""
         response = requests.get(f"{self.endpoint}/api/voicemail/status?job_id={job_id}")
-        response.raise_for_status()
         return response.json()
     
     def wait_for_completion(
@@ -268,17 +274,7 @@ class AgentWallet:
         timeout: int = 120,
         poll_interval: int = 5
     ) -> Dict[str, Any]:
-        """
-        Poll for job completion
-        
-        Args:
-            job_id: Job ID to check
-            timeout: Max seconds to wait
-            poll_interval: Seconds between polls
-            
-        Returns:
-            Final job result
-        """
+        """Poll for job completion"""
         start = time.time()
         
         while time.time() - start < timeout:
@@ -288,102 +284,33 @@ class AgentWallet:
                 return status
             
             if status.get("status") == "failed":
-                raise ProcessingError(f"Job failed: {status.get('error')}")
+                raise Exception(f"Job failed: {status.get('error')}")
             
             time.sleep(poll_interval)
         
         raise TimeoutError(f"Job {job_id} did not complete within {timeout}s")
 
 
-class AgentBudgetManager:
-    """
-    Higher-level manager for agents with budget constraints
-    """
-    
-    def __init__(
-        self,
-        wallet: AgentWallet,
-        budget_sol: float = 0.1,
-        max_cost_per_operation: float = 0.01
-    ):
-        self.wallet = wallet
-        self.budget_sol = budget_sol
-        self.spent_sol = 0.0
-        self.max_cost_per_operation = max_cost_per_operation
-    
-    def can_afford(self, cost_sol: float) -> bool:
-        """Check if operation is within budget"""
-        return (self.spent_sol + cost_sol) <= self.budget_sol
-    
-    def execute(self, operation, cost_sol: float, *args, **kwargs):
-        """
-        Execute operation within budget
-        
-        Args:
-            operation: Callable to execute
-            cost_sol: Expected cost
-            *args, **kwargs: Arguments for operation
-            
-        Returns:
-            Operation result or budget exceeded error
-        """
-        if not self.can_afford(cost_sol):
-            return {
-                "success": False,
-                "error": "BUDGET_EXCEEDED",
-                "budget": self.budget_sol,
-                "spent": self.spent_sol,
-                "required": cost_sol,
-            }
-        
-        if cost_sol > self.max_cost_per_operation:
-            return {
-                "success": False,
-                "error": "COST_EXCEEDS_MAX",
-                "max": self.max_cost_per_operation,
-                "required": cost_sol,
-            }
-        
-        try:
-            result = operation(*args, **kwargs)
-            self.spent_sol += cost_sol
-            return {"success": True, "result": result, "spent": self.spent_sol}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-
-class APIError(Exception):
-    """API request failed"""
-    pass
-
-
-class ProcessingError(Exception):
-    """Job processing failed"""
-    pass
-
-
 # Example usage
 if __name__ == "__main__":
     import os
     
-    # Initialize wallet
-    wallet = AgentWallet()
+    # Initialize
+    client = AgentVoicemailClient()
     
-    print(f"🤖 Agent address: {wallet.address}")
-    print(f"💳 Balance: {wallet.get_balance():.6f} SOL")
+    print(f"🤖 Agent address: {client.address}")
+    print(f"💳 USDC Balance: {client.get_usdc_balance():.2f} USDC")
     
-    # Process voicemail
     try:
-        result = wallet.process_voicemail(
-            audio_url="https://example.com/voicemail.mp3",
-            webhook_url="https://my-agent.com/webhook",
+        result = client.process_voicemail(
+            "https://example.com/voicemail.mp3",
+            "https://my-agent.com/webhook",
         )
         
-        print(f"✅ Job queued: {result.job_id}")
-        print(f"📊 Free tier: {result.free_tier}, Remaining: {result.remaining_free}")
+        print(f"✅ Job: {result.job_id}")
         
-        # Wait for completion (optional - webhook is preferred)
-        final = wallet.wait_for_completion(result.job_id, timeout=60)
+        # Wait for completion
+        final = client.wait_for_completion(result.job_id, timeout=60)
         print(f"📝 Transcription: {final.get('result', {}).get('transcription', 'N/A')[:100]}...")
         
     except Exception as e:

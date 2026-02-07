@@ -1,15 +1,31 @@
 /**
- * Analytics Dashboard
- * Real-time monitoring of AgentWallet Protocol metrics
+ * Analytics Dashboard (Private)
+ * 
+ * Add ?key=YOUR_SECRET to URL to access
  */
 
 import { useState, useEffect } from 'react';
 
+const SECRET_KEY = process.env.ANALYTICS_SECRET || 'admin123'; // Change this!
+
 export default function AnalyticsDashboard() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [inputKey, setInputKey] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('summary');
   const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Check for secret key in URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const key = urlParams.get('key');
+      if (key === SECRET_KEY) {
+        setAuthenticated(true);
+      }
+    }
+  }, []);
 
   // Fetch analytics data
   const fetchData = async () => {
@@ -25,13 +41,44 @@ export default function AnalyticsDashboard() {
   };
 
   useEffect(() => {
-    fetchData();
-    
-    if (autoRefresh) {
-      const interval = setInterval(fetchData, 10000); // Refresh every 10s
-      return () => clearInterval(interval);
+    if (authenticated) {
+      fetchData();
+      
+      if (autoRefresh) {
+        const interval = setInterval(fetchData, 10000);
+        return () => clearInterval(interval);
+      }
     }
-  }, [view, autoRefresh]);
+  }, [authenticated, view, autoRefresh]);
+
+  // Login gate
+  if (!authenticated) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.loginBox}>
+          <h2>🔒 Private Analytics</h2>
+          <p>Enter access key:</p>
+          <input
+            type="password"
+            value={inputKey}
+            onChange={(e) => setInputKey(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && setAuthenticated(inputKey === SECRET_KEY)}
+            style={styles.input}
+            placeholder="Enter key..."
+          />
+          <button 
+            onClick={() => setAuthenticated(inputKey === SECRET_KEY)}
+            style={styles.button}
+          >
+            Access
+          </button>
+          {inputKey && inputKey !== SECRET_KEY && (
+            <p style={{ color: '#ef4444' }}>Invalid key</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -44,7 +91,7 @@ export default function AnalyticsDashboard() {
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <h1>📊 AgentWallet Analytics</h1>
+        <h1>📊 AgentVoicemail Analytics</h1>
         <div style={styles.controls}>
           <button 
             onClick={() => setAutoRefresh(!autoRefresh)}
@@ -97,96 +144,15 @@ export default function AnalyticsDashboard() {
               <div style={styles.cardValue}>{data.revenue.paidRequests}</div>
             </div>
             <div style={styles.card}>
-              <div style={styles.cardLabel}>Total SOL Revenue</div>
+              <div style={styles.cardLabel}>Total USDC Revenue</div>
               <div style={{...styles.cardValue, color: '#9333ea'}}>
-                ◎ {data.revenue.totalRevenueSol}
+                {data.revenue.totalRevenueUsdc || 0} USDC
               </div>
             </div>
             <div style={styles.card}>
               <div style={styles.cardLabel}>Est. USD Revenue</div>
-              <div style={styles.cardValue}>${data.revenue.estimatedUsdRevenue}</div>
+              <div style={styles.cardValue}>${data.revenue.estimatedUsdRevenue || 0}</div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Performance */}
-      {data?.performance && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>⚡ Performance</h2>
-          <div style={styles.grid}>
-            <div style={styles.card}>
-              <div style={styles.cardLabel}>Avg Processing Time</div>
-              <div style={styles.cardValue}>
-                {data.performance.avgProcessingTimeMs ? `${data.performance.avgProcessingTimeMs}ms` : 'N/A'}
-              </div>
-            </div>
-            <div style={styles.card}>
-              <div style={styles.cardLabel}>Total Processed</div>
-              <div style={styles.cardValue}>{data.performance.totalProcessed}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Top Intents */}
-      {data?.intents && data.intents.length > 0 && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>📞 Voicemail Intents</h2>
-          <div style={styles.list}>
-            {data.intents.slice(0, 5).map((item, i) => (
-              <div key={i} style={styles.listItem}>
-                <span style={styles.listLabel}>{item.intent}</span>
-                <span style={styles.listValue}>{item.count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Top Urgencies */}
-      {data?.urgencies && data.urgencies.length > 0 && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>⏰ Urgency Levels</h2>
-          <div style={styles.list}>
-            {data.urgencies.map((item, i) => (
-              <div key={i} style={styles.listItem}>
-                <span style={styles.listLabel}>{item.urgency}</span>
-                <span style={styles.listValue}>{item.count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Top Agents */}
-      {data?.topAgents && data.topAgents.length > 0 && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>🤖 Most Active Agents</h2>
-          <div style={styles.list}>
-            {data.topAgents.map((agent, i) => (
-              <div key={i} style={styles.listItem}>
-                <span style={styles.listLabel}>{agent.agentId.substring(0, 20)}...</span>
-                <span style={styles.listValue}>{agent.requestCount} requests</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Top Errors */}
-      {data?.errors?.topErrors && data.errors.topErrors.length > 0 && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>❌ Top Errors</h2>
-          <div style={styles.list}>
-            {data.errors.topErrors.map((error, i) => (
-              <div key={i} style={styles.listItem}>
-                <span style={{...styles.listLabel, color: '#ef4444', fontFamily: 'monospace', fontSize: '12px'}}>
-                  {error.error}
-                </span>
-                <span style={styles.listValue}>{error.count}</span>
-              </div>
-            ))}
           </div>
         </div>
       )}
@@ -217,6 +183,24 @@ const styles = {
     backgroundColor: '#0a0a0a',
     color: '#e5e5e5',
     minHeight: '100vh',
+  },
+  loginBox: {
+    maxWidth: '400px',
+    margin: '100px auto',
+    padding: '40px',
+    backgroundColor: '#1a1a1a',
+    borderRadius: '8px',
+    textAlign: 'center',
+  },
+  input: {
+    width: '100%',
+    padding: '12px',
+    fontSize: '16px',
+    backgroundColor: '#0a0a0a',
+    border: '1px solid #333',
+    borderRadius: '6px',
+    color: '#fff',
+    marginBottom: '15px',
   },
   header: {
     display: 'flex',
@@ -279,25 +263,6 @@ const styles = {
     fontSize: '20px',
     marginBottom: '15px',
     color: '#fff',
-  },
-  list: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: '8px',
-    border: '1px solid #333',
-    overflow: 'hidden',
-  },
-  listItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '12px 20px',
-    borderBottom: '1px solid #333',
-  },
-  listLabel: {
-    color: '#e5e5e5',
-  },
-  listValue: {
-    color: '#999',
-    fontWeight: 'bold',
   },
   empty: {
     textAlign: 'center',

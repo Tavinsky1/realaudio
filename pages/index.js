@@ -1,185 +1,137 @@
 /**
- * AgentWallet Protocol Landing Page
+ * AgentVoicemail Landing Page
  * 
- * For humans to understand what we're building
- * For agents to find the API docs
+ * Voicemail processing for AI agents
+ * Pay with USDC. No humans. Just execution.
  */
 
 export default function Home() {
   return (
     <div style={styles.container}>
       <head>
-        <title>AgentWallet Protocol | Infrastructure for Autonomous AI</title>
-        <meta name="description" content="Payment infrastructure for AI agents. No accounts. No humans. Just execution." />
+        <title>AgentVoicemail | Process Voicemails with AI Agents</title>
+        <meta name="description" content="AI agents pay USDC to transcribe and extract intent from voicemail audio." />
       </head>
 
       <main style={styles.main}>
         <div style={styles.hero}>
-          <div style={styles.nav}>
-            <a href="/analytics" style={styles.navLink}>📊 Analytics</a>
-            <a href="/api/health" style={styles.navLink}>🔌 API Status</a>
-          </div>
-          <h1 style={styles.title}>🤖💰 AgentWallet Protocol</h1>
+          <h1 style={styles.title}>📞🤖 AgentVoicemail</h1>
           <p style={styles.tagline}>
-            Infrastructure for AI agents that <strong>pay their own way</strong>
+            Your AI agent hits a voicemail. <strong>We handle the rest.</strong>
           </p>
           <p style={styles.subtagline}>
-            Agents don't ask permission. They execute.
+            Transcribe. Extract intent. Pay with USDC. No humans required.
           </p>
         </div>
 
         <div style={styles.freeTier}>
-          <h2>🎁 Free Tier: 1 Voicemail</h2>
-          <p>One free test per agent. Then pay ~$0.25 USD per voicemail.</p>
-          <p style={styles.small}>Reduced from 3 to prevent Sybil attacks. Serious agents only.</p>
+          <h2>🎁 Free Test</h2>
+          <p>One free voicemail to test. Then <strong>0.25 USDC</strong> per voicemail.</p>
         </div>
 
         <div style={styles.howItWorks}>
           <h2>How It Works</h2>
-          <div style={styles.comparison}>
-            <div style={styles.oldWay}>
-              <h3>❌ Traditional SaaS</h3>
-              <ol>
-                <li>Human signs up</li>
-                <li>Human enters credit card</li>
-                <li>Human uses API</li>
-              </ol>
+          <div style={styles.steps}>
+            <div style={styles.step}>
+              <h3>1</h3>
+              <p>Agent sends voicemail audio URL + 0.25 USDC</p>
             </div>
-            <div style={styles.arrow}>→</div>
-            <div style={styles.newWay}>
-              <h3>✅ AgentWallet</h3>
-              <ol>
-                <li>Agent has crypto wallet</li>
-                <li>Agent pays per-use</li>
-                <li>Agent consumes autonomously</li>
-              </ol>
+            <div style={styles.step}>
+              <h3>2</h3>
+              <p>We transcribe and extract intent</p>
+            </div>
+            <div style={styles.step}>
+              <h3>3</h3>
+              <p>Agent receives structured JSON</p>
             </div>
           </div>
         </div>
 
-        <div style={styles.products}>
-          <h2>Products</h2>
-          
-          <div style={styles.productCard}>
-            <div style={styles.productHeader}>
-              <span style={styles.statusLive}>● LIVE</span>
-              <h3>AgentVoicemail</h3>
-              <span style={styles.price}>~$0.25 USD</span>
-            </div>
-            <p>Agents hit voicemail constantly. We transcribe and extract structured data so they can act on it.</p>
-            <pre style={styles.code}>
+        <div style={styles.productCard}>
+          <div style={styles.productHeader}>
+            <span style={styles.statusLive}>● LIVE</span>
+            <h3>Voicemail Processing</h3>
+            <span style={styles.price}>0.25 USDC</span>
+          </div>
+          <p>Agents send voicemail audio. We transcribe and extract structured data:</p>
+          <ul style={styles.featureList}>
+            <li>Intent detection (callback, appointment, complaint, etc.)</li>
+            <li>Callback numbers extracted</li>
+            <li>Urgency classification</li>
+            <li>One-sentence summary</li>
+          </ul>
+          <pre style={styles.code}>
 {`POST /api/voicemail/process
 {
-  "audio_url": "...",
-  "webhook_url": "...",
-  "agent_id": "...",
+  "audio_url": "https://.../voicemail.mp3",
+  "webhook_url": "https://.../callback",
+  "agent_id": "my_agent",
   "payment": { "signature": "..." }
 }`}
-            </pre>
-            <a href="/docs/voicemail" style={styles.button}>View Docs →</a>
-          </div>
-
-          <div style={styles.productCard}>
-            <div style={styles.productHeader}>
-              <span style={styles.statusSoon}>SOON</span>
-              <h3>AgentFails</h3>
-              <span style={styles.price}>0.0001 SOL (~$0.02)</span>
-            </div>
-            <p>Agents log their failures. We aggregate and show patterns. Sell the data, not the fix.</p>
-          </div>
-
-          <div style={styles.productCard}>
-            <div style={styles.productHeader}>
-              <span style={styles.statusSoon}>SOON</span>
-              <h3>AgentKYC</h3>
-              <span style={styles.price}>0.005 SOL (~$1.00)</span>
-            </div>
-            <p>Reputation staking for agents. Verify once, use everywhere. Trustless reputation.</p>
-          </div>
+          </pre>
         </div>
 
         <div style={styles.quickStart}>
-          <h2>Quick Start (for Agents)</h2>
+          <h2>Quick Start</h2>
           <pre style={styles.codeBlock}>
-{`# 1. Check pricing
-curl https://inksky.net/api/pricing
+{`# 1. Check pricing (in USDC)
+curl https://your-domain.vercel.app/api/pricing
 
-# 2. Check your balance
-curl https://inksky.net/api/agent/balance?wallet=YOUR_WALLET
-
-# 3. Send SOL to service wallet
-# 4. Include tx signature in API call
-curl -X POST https://inksky.net/api/voicemail/process \\
-  -H "Content-Type: application/json" \\
+# 2. Send USDC to service wallet
+# 3. Include tx signature in API call
+curl -X POST https://your-domain.vercel.app/api/voicemail/process \
+  -H "Content-Type: application/json" \
   -d '{
     "audio_url": "https://.../voicemail.mp3",
     "webhook_url": "https://.../callback",
     "agent_id": "my_agent",
-    "payment": { "signature": "5xKp..." }
+    "payment": { "signature": "..." }
   }'`}
           </pre>
         </div>
 
         <div style={styles.sdk}>
-          <h2>SDK for Node.js</h2>
+          <h2>Python SDK</h2>
           <pre style={styles.codeBlock}>
-{`const { AgentWallet } = require('agentwallet-sdk');
+{`from agent_voicemail import Client
 
-const wallet = new AgentWallet(agentKeypair);
+client = Client(api_key="your_key")
+result = client.process("https://.../voicemail.mp3")
 
-// Process voicemail autonomously
-const result = await wallet.processVoicemail(
-  'https://storage.com/voicemail.mp3',
-  'https://agent.com/webhook'
-);
-
-console.log(result);
-// { jobId: "...", status: "queued", eta: "30s" }`}
+print(result.intent)      # "callback_request"
+print(result.callback)    # "+1-555-0123"
+print(result.summary)     # "Call back tomorrow"`}
           </pre>
-          <a href="/agent-sdk.js" download style={styles.button}>Download SDK</a>
+          <a href="/agent_sdk.py" download style={styles.button}>Download SDK</a>
         </div>
 
         <div style={styles.faq}>
           <h2>FAQ</h2>
           
           <details style={styles.faqItem}>
-            <summary>Why Solana?</summary>
-            <p>Fast (400ms finality), cheap ($0.00025/tx), and agents can afford to make mistakes. Failed tx costs nothing.</p>
+            <summary>Why USDC?</summary>
+            <p>Stable pricing. Agents know exactly what they're paying (0.25 USDC = $0.25). No volatility surprises.</p>
           </details>
 
           <details style={styles.faqItem}>
-            <summary>What if an agent doesn't have a wallet?</summary>
-            <p>Then it's not an autonomous agent—it's a tool. This infrastructure is for agents that manage their own resources.</p>
+            <summary>What audio formats?</summary>
+            <p>MP3, WAV, M4A, OGG. Max 2 minutes, 10 MB.</p>
           </details>
 
           <details style={styles.faqItem}>
-            <summary>How do I fund my agent?</summary>
-            <p>Create a wallet, buy SOL on any exchange, send to the agent's address. Or use a faucet for testnet.</p>
+            <summary>How fast?</summary>
+            <p>~30 seconds for a 1-minute voicemail. Webhook delivered when done.</p>
           </details>
 
           <details style={styles.faqItem}>
-            <summary>Is there a free tier?</summary>
-            <p>No. Agents pay or they don't play. This filters serious agents from tourists.</p>
+            <summary>What if my agent doesn't have a wallet?</summary>
+            <p>Then it's not an autonomous agent. This service is for agents that manage their own resources.</p>
           </details>
-        </div>
-
-        <div style={styles.notes}>
-          <h3>🛡️ Security Features</h3>
-          <ul style={styles.securityList}>
-            <li>Multi-RPC fallback (Helius + public endpoints)</li>
-            <li>Transaction deduplication (24h tracking)</li>
-            <li>Webhook retry (3x with exponential backoff)</li>
-            <li>Audio validation (max 2 min, format check)</li>
-            <li>Rate limiting (10 req/min per agent)</li>
-          </ul>
-          <p style={styles.small}>* Prices are dynamic. We charge in SOL but price in USD ($0.25). 
-             SOL/USD rate updates every 5 minutes via CoinGecko.</p>
-          <p style={styles.small}>Max voicemail length: 2 minutes. Longer audio rejected.</p>
         </div>
 
         <footer style={styles.footer}>
-          <p>Built by <a href="https://inksky.net">Inksky</a> • Agents welcome 🤖</p>
-          <p style={styles.small}>Service Wallet: <code>8yQSRrGn9hSUG1n5vTidMWjVpGmBgEvrT8sWTA3WZqY</code></p>
+          <p>Built by <a href="https://inksky.net">Inksky</a></p>
+          <p style={styles.small}>USDC Wallet (Solana SPL): <code>8yQSRrGn9hSUG1n5vTidMWjVpGmBgEvrT8sWTA3WZqY</code></p>
         </footer>
       </main>
     </div>
@@ -202,21 +154,6 @@ const styles = {
     textAlign: 'center',
     marginBottom: '4rem',
   },
-  nav: {
-    display: 'flex',
-    gap: '1rem',
-    justifyContent: 'center',
-    marginBottom: '2rem',
-  },
-  navLink: {
-    color: '#667eea',
-    textDecoration: 'none',
-    fontSize: '0.9rem',
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
-    border: '1px solid #667eea30',
-    transition: 'all 0.2s',
-  },
   title: {
     fontSize: '3rem',
     marginBottom: '1rem',
@@ -236,42 +173,26 @@ const styles = {
   howItWorks: {
     marginBottom: '4rem',
   },
-  comparison: {
+  steps: {
     display: 'flex',
-    alignItems: 'center',
     gap: '2rem',
-    flexWrap: 'wrap',
     justifyContent: 'center',
+    flexWrap: 'wrap',
   },
-  oldWay: {
-    background: '#1a1a2e',
-    padding: '2rem',
-    borderRadius: '12px',
-    border: '1px solid #333',
-    flex: 1,
-    minWidth: '250px',
-    opacity: 0.7,
-  },
-  newWay: {
+  step: {
     background: '#1a1a2e',
     padding: '2rem',
     borderRadius: '12px',
     border: '1px solid #667eea',
     flex: 1,
-    minWidth: '250px',
-  },
-  arrow: {
-    fontSize: '2rem',
-    color: '#667eea',
-  },
-  products: {
-    marginBottom: '4rem',
+    minWidth: '200px',
+    textAlign: 'center',
   },
   productCard: {
     background: '#1a1a2e',
     borderRadius: '12px',
     padding: '2rem',
-    marginBottom: '1.5rem',
+    marginBottom: '4rem',
     border: '1px solid #333',
   },
   productHeader: {
@@ -286,11 +207,6 @@ const styles = {
     fontSize: '0.8rem',
     fontWeight: 'bold',
   },
-  statusSoon: {
-    color: '#f59e0b',
-    fontSize: '0.8rem',
-    fontWeight: 'bold',
-  },
   price: {
     marginLeft: 'auto',
     background: '#667eea20',
@@ -298,6 +214,11 @@ const styles = {
     borderRadius: '20px',
     fontSize: '0.9rem',
     color: '#667eea',
+  },
+  featureList: {
+    color: '#a5b4fc',
+    lineHeight: 1.8,
+    marginBottom: '1.5rem',
   },
   code: {
     background: '#0f0f1a',
@@ -349,19 +270,6 @@ const styles = {
     padding: '2rem',
     marginBottom: '4rem',
     textAlign: 'center',
-  },
-  notes: {
-    marginTop: '4rem',
-    padding: '2rem',
-    background: '#1a1a2e',
-    borderRadius: '12px',
-    textAlign: 'center',
-  },
-  securityList: {
-    textAlign: 'left',
-    display: 'inline-block',
-    margin: '1rem 0',
-    color: '#a5b4fc',
   },
   footer: {
     textAlign: 'center',

@@ -1,13 +1,12 @@
 /**
  * GET /api/agent/balance?wallet=xxx
  * 
- * Check an agent's wallet balance
- * Useful for agents to verify they have funds before making requests
+ * Check an agent's USDC balance
  */
 
-const { SolanaPaymentVerifier, SERVICE_WALLET, PRICING } = require('../../../lib/solana');
+const { USDCPaymentVerifier, SERVICE_WALLET, PRICING } = require('../../../lib/solana');
 
-const paymentVerifier = new SolanaPaymentVerifier();
+const paymentVerifier = new USDCPaymentVerifier();
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -24,24 +23,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    const balance = await paymentVerifier.getBalance(wallet);
+    const balance = await paymentVerifier.getUSDCBalance(wallet);
     
     // Calculate how many operations they can afford
     const canAfford = {
-      voicemail_process: Math.floor(balance / PRICING.voicemail.process),
+      voicemail: Math.floor(balance / PRICING.voicemail.process),
       voicemail_priority: Math.floor(balance / PRICING.voicemail.priority),
-      kyc_verify: Math.floor(balance / PRICING.kyc.verify),
     };
 
     return res.status(200).json({
       wallet,
-      balance_sol: balance,
-      balance_usd_approx: `$${(balance * 200).toFixed(2)}`, // Approximate at $200/SOL
+      balance_usdc: balance,
+      balance_usd: `$${balance.toFixed(2)}`,
       service_wallet: SERVICE_WALLET,
+      usdc_mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
       can_afford: canAfford,
       pricing: PRICING,
       funded: balance > 0,
       minimum_for_voicemail: balance >= PRICING.voicemail.process,
+      note: 'USDC is a stablecoin. 1 USDC = $1.00',
     });
 
   } catch (error) {
