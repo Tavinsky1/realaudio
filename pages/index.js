@@ -69,12 +69,21 @@ export default function Home() {
         <p><strong>Endpoint:</strong> <code>POST /api/vision/analyze</code></p>
       </div>
 
-      <div style={{ border: '1px solid #ddd', padding: 20 }}>
+      <div style={{ border: '1px solid #ddd', padding: 20, marginBottom: 20 }}>
         <h3>📄 AgentPDF</h3>
         <p>Extract text and data from PDF files.</p>
         <p><strong>Price:</strong> 0.15 USDC per PDF</p>
         <p><strong>Modes:</strong> text, structured, summary</p>
         <p><strong>Endpoint:</strong> <code>POST /api/pdf/extract</code></p>
+      </div>
+
+      <div style={{ border: '1px solid #ddd', padding: 20 }}>
+        <h3>🧬 AgentDNA</h3>
+        <p>Mint your agent's genetic identity on Solana.</p>
+        <p><strong>Price:</strong> 5 USDC (one-time, forever)</p>
+        <p><strong>Includes:</strong> DNA card, traits, rarity score</p>
+        <p><strong>Format:</strong> Compressed NFT (cNFT)</p>
+        <p><a href="/dna">Mint Your DNA</a></p>
       </div>
 
       <h2 style={{ marginTop: 40 }}>How to Pay</h2>
