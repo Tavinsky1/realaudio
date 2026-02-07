@@ -5,10 +5,23 @@
  */
 
 const { voicemailProcessor } = require('./process');
+const { applyRateLimit } = require('../../../lib/rate-limiter');
+
+// Rate limit: 30 requests per minute per IP (status checks)
+const RATE_LIMIT = { maxRequests: 30, windowMs: 60000 };
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
+  }
+
+  // Apply rate limiting
+  const allowed = applyRateLimit(req, res, RATE_LIMIT);
+  if (!allowed) {
+    return res.status(429).json({
+      error: 'RATE_LIMITED',
+      message: 'Too many status check requests. Maximum 30 per minute.',
+    });
   }
 
   const { job_id } = req.query;

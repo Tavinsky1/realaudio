@@ -76,7 +76,7 @@
 ### Deployment Command
 
 ```bash
-cd "/Users/tavinsky/Documents/ai/agent ideas/agent-tools"
+cd agent-tools
 
 # Deploy to Vercel
 vercel --prod

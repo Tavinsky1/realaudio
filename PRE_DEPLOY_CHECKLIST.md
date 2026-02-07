@@ -53,7 +53,7 @@
 ### How to Test Locally
 
 ```bash
-cd "/Users/tavinsky/Documents/ai/agent ideas/agent-tools"
+cd agent-tools
 
 # 1. Install dependencies
 npm install

@@ -33,6 +33,7 @@ const { rpcManager } = require('../../../lib/solana-rpc');
 const { webhookQueue } = require('../../../lib/webhook-queue');
 const { VoicemailProcessor } = require('../../../lib/voicemail');
 const { analytics } = require('../../../lib/analytics');
+const { applyRateLimit, getClientIdentifier } = require('../../../lib/rate-limiter');
 
 // Configuration
 const SERVICE_WALLET = new PublicKey(process.env.SERVICE_WALLET || 'YOUR_SERVICE_WALLET_HERE');
@@ -41,28 +42,37 @@ const FREE_TIER_LIMIT = 1; // REDUCED from 3 to 1
 // Services
 const voicemailProcessor = new VoicemailProcessor();
 
-// Rate limiting
-const rateLimits = new Map();
-const RATE_LIMIT_WINDOW = 60 * 1000;
-const RATE_LIMIT_MAX = 10;
+// Rate limiting configuration
+// Per-IP rate limit: 10 requests per minute (global protection)
+// Per-agent rate limit: 5 requests per minute (agent-specific protection)
+const IP_RATE_LIMIT = { maxRequests: 10, windowMs: 60000 };
+const AGENT_RATE_LIMIT = { maxRequests: 5, windowMs: 60000 };
 
-function checkRateLimit(agentId) {
+const agentRateLimits = new Map();
+
+function checkAgentRateLimit(agentId) {
   const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW;
+  const record = agentRateLimits.get(agentId);
   
-  if (!rateLimits.has(agentId)) {
-    rateLimits.set(agentId, []);
+  if (!record) {
+    const resetTime = now + AGENT_RATE_LIMIT.windowMs;
+    agentRateLimits.set(agentId, { count: 1, resetTime });
+    return { allowed: true, remaining: AGENT_RATE_LIMIT.maxRequests - 1 };
   }
   
-  const requests = rateLimits.get(agentId).filter(t => t > windowStart);
-  
-  if (requests.length >= RATE_LIMIT_MAX) {
-    return { allowed: false, retryAfter: 60 };
+  if (now > record.resetTime) {
+    const resetTime = now + AGENT_RATE_LIMIT.windowMs;
+    agentRateLimits.set(agentId, { count: 1, resetTime });
+    return { allowed: true, remaining: AGENT_RATE_LIMIT.maxRequests - 1 };
   }
   
-  requests.push(now);
-  rateLimits.set(agentId, requests);
-  return { allowed: true };
+  record.count++;
+  
+  if (record.count > AGENT_RATE_LIMIT.maxRequests) {
+    return { allowed: false, retryAfter: Math.ceil((record.resetTime - now) / 1000) };
+  }
+  
+  return { allowed: true, remaining: AGENT_RATE_LIMIT.maxRequests - record.count };
 }
 
 export default async function handler(req, res) {
@@ -74,6 +84,15 @@ export default async function handler(req, res) {
   }
 
   try {
+    // IP-based rate limiting (global protection against DDoS)
+    const ipAllowed = applyRateLimit(req, res, IP_RATE_LIMIT);
+    if (!ipAllowed) {
+      return res.status(429).json({
+        error: 'RATE_LIMITED',
+        message: 'Too many requests from your IP. Maximum 10 per minute.',
+      });
+    }
+
     // Validate request body
     const validation = await validator.validateRequest(req.body);
     if (!validation.valid) {
@@ -94,13 +113,13 @@ export default async function handler(req, res) {
       });
     }
 
-    // Rate limiting
-    const rateCheck = checkRateLimit(agent_id);
-    if (!rateCheck.allowed) {
+    // Agent-based rate limiting (per-agent protection)
+    const agentRateCheck = checkAgentRateLimit(agent_id);
+    if (!agentRateCheck.allowed) {
       return res.status(429).json({
         error: 'RATE_LIMITED',
-        message: 'Too many requests. Maximum 10 per minute per agent.',
-        retry_after: `${rateCheck.retryAfter}s`,
+        message: 'Too many requests for this agent. Maximum 5 per minute per agent.',
+        retry_after: `${agentRateCheck.retryAfter}s`,
       });
     }
 

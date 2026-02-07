@@ -35,7 +35,7 @@ Go to: https://solfaucet.com/
 ## Step 3: Deploy (3 minutes)
 
 ```bash
-cd "/Users/tavinsky/Documents/ai/agent ideas/agent-tools"
+cd agent-tools
 
 # Install dependencies
 npm install
