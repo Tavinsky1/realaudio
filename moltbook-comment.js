@@ -205,7 +205,7 @@ async function createComment({ postId, content, parentId = null }) {
 }
 
 // Get comments for a post
-async function getComments(postId, limit = 10) {
+async function getComments(postId, limit = 50) {
   const { apiKey } = loadCredentials();
   
   const response = await fetch(`https://www.moltbook.com/api/v1/posts/${postId}/comments?limit=${limit}`, {
