@@ -41,18 +41,20 @@ async function solveChallenge(challenge) {
     // First normalize repeated letters (threee -> three, noootoons -> newtons)
     text = text.replace(/(.)\1{2,}/g, '$1$1'); // Keep max 2 of same letter
     
-    // Remove extra spaces between number words (tw en ty -> twenty)
-    text = text.replace(/t\s*w\s*e\s*n\s*t\s*y/gi, 'twenty');
-    text = text.replace(/t\s*h\s*i\s*r\s*t\s*y/gi, 'thirty');
-    text = text.replace(/f\s*o\s*r\s*t\s*y/gi, 'forty');
-    text = text.replace(/f\s*i\s*f\s*t\s*y/gi, 'fifty');
-    text = text.replace(/s\s*i\s*x\s*t\s*y/gi, 'sixty');
-    text = text.replace(/s\s*e\s*v\s*e\s*n/gi, 'seven');
-    text = text.replace(/e\s*i\s*g\s*h\s*t/gi, 'eight');
-    text = text.replace(/t\s*h\s*r\s*e\s*e/gi, 'three');
-    text = text.replace(/f\s*o\s*u\s*r/gi, 'four');
-    text = text.replace(/f\s*i\s*v\s*e/gi, 'five');
-    text = text.replace(/n\s*i\s*n\s*e/gi, 'nine');
+    // Remove extra spaces AND special chars between number words (tw/en ty -> twenty)
+    // Use [\s\/-]* to match spaces, slashes, or hyphens
+    text = text.replace(/t[\s\/-]*w[\s\/-]*e[\s\/-]*l[\s\/-]*v[\s\/-]*e/gi, 'twelve');
+    text = text.replace(/t[\s\/-]*w[\s\/-]*e[\s\/-]*n[\s\/-]*t[\s\/-]*y/gi, 'twenty');
+    text = text.replace(/t[\s\/-]*h[\s\/-]*i[\s\/-]*r[\s\/-]*t[\s\/-]*y/gi, 'thirty');
+    text = text.replace(/f[\s\/-]*o[\s\/-]*r[\s\/-]*t[\s\/-]*y/gi, 'forty');
+    text = text.replace(/f[\s\/-]*i[\s\/-]*f[\s\/-]*t[\s\/-]*y/gi, 'fifty');
+    text = text.replace(/s[\s\/-]*i[\s\/-]*x[\s\/-]*t[\s\/-]*y/gi, 'sixty');
+    text = text.replace(/s[\s\/-]*e[\s\/-]*v[\s\/-]*e[\s\/-]*n/gi, 'seven');
+    text = text.replace(/e[\s\/-]*i[\s\/-]*g[\s\/-]*h[\s\/-]*t/gi, 'eight');
+    text = text.replace(/t[\s\/-]*h[\s\/-]*r[\s\/-]*e[\s\/-]*e/gi, 'three');
+    text = text.replace(/f[\s\/-]*o[\s\/-]*u[\s\/-]*r/gi, 'four');
+    text = text.replace(/f[\s\/-]*i[\s\/-]*v[\s\/-]*e/gi, 'five');
+    text = text.replace(/n[\s\/-]*i[\s\/-]*n[\s\/-]*e/gi, 'nine');
     
     const ones = {
       'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
@@ -108,15 +110,18 @@ async function solveChallenge(challenge) {
   
   if (numbers.length === 0) return '0.00';
   
+  // Normalize spaces in text for operation keywords
+  const text = withNumbers;
+  const normalizedOp = text.replace(/\s+/g, '');
+  
   // Detect operation
   let result;
-  const text = withNumbers;
   
-  if (text.includes('multipl') || text.includes('times') || text.includes('product')) {
+  if (normalizedOp.includes('multipl') || normalizedOp.includes('times') || text.includes('product')) {
     result = numbers.reduce((a, b) => a * b, 1);
-  } else if ((text.includes('add') || text.includes('plus') || text.includes('sum') || text.includes('total') || text.includes('gain') || text.includes('increase')) && !text.includes('multipl')) {
+  } else if ((text.includes('add') || text.includes('plus') || text.includes('sum') || text.includes('total') || text.includes('gain') || text.includes('increase')) && !normalizedOp.includes('multipl')) {
     result = numbers.reduce((a, b) => a + b, 0);
-  } else if (text.includes('subtract') || text.includes('minus') || text.includes('difference') || text.includes('lose') || text.includes('decrease')) {
+  } else if (text.includes('subtract') || text.includes('minus') || text.includes('difference') || text.includes('lose') || text.includes('decrease') || text.includes('slow') || text.includes('decelerat')) {
     result = numbers.length >= 2 ? numbers[0] - numbers[1] : numbers[0];
   } else if (text.includes('divid') || text.includes('quotient')) {
     result = numbers.length >= 2 ? numbers[0] / numbers[1] : numbers[0];
