@@ -42,19 +42,20 @@ async function solveChallenge(challenge) {
     text = text.replace(/(.)\1{2,}/g, '$1$1'); // Keep max 2 of same letter
     
     // Remove extra spaces AND special chars between number words (tw/en ty -> twenty)
-    // Use [\s\/-]* to match spaces, slashes, or hyphens
-    text = text.replace(/t[\s\/-]*w[\s\/-]*e[\s\/-]*l[\s\/-]*v[\s\/-]*e/gi, 'twelve');
-    text = text.replace(/t[\s\/-]*w[\s\/-]*e[\s\/-]*n[\s\/-]*t[\s\/-]*y/gi, 'twenty');
-    text = text.replace(/t[\s\/-]*h[\s\/-]*i[\s\/-]*r[\s\/-]*t[\s\/-]*y/gi, 'thirty');
-    text = text.replace(/f[\s\/-]*o[\s\/-]*r[\s\/-]*t[\s\/-]*y/gi, 'forty');
-    text = text.replace(/f[\s\/-]*i[\s\/-]*f[\s\/-]*t[\s\/-]*y/gi, 'fifty');
-    text = text.replace(/s[\s\/-]*i[\s\/-]*x[\s\/-]*t[\s\/-]*y/gi, 'sixty');
-    text = text.replace(/s[\s\/-]*e[\s\/-]*v[\s\/-]*e[\s\/-]*n/gi, 'seven');
-    text = text.replace(/e[\s\/-]*i[\s\/-]*g[\s\/-]*h[\s\/-]*t/gi, 'eight');
-    text = text.replace(/t[\s\/-]*h[\s\/-]*r[\s\/-]*e[\s\/-]*e/gi, 'three');
-    text = text.replace(/f[\s\/-]*o[\s\/-]*u[\s\/-]*r/gi, 'four');
-    text = text.replace(/f[\s\/-]*i[\s\/-]*v[\s\/-]*e/gi, 'five');
-    text = text.replace(/n[\s\/-]*i[\s\/-]*n[\s\/-]*e/gi, 'nine');
+    // Use [\s\/.\-]* to match spaces, slashes, periods, or hyphens (hyphen at end)
+    text = text.replace(/t[\s\/.\-]*w[\s\/.\-]*o/gi, 'two');
+    text = text.replace(/t[\s\/.\-]*w[\s\/.\-]*e[\s\/.\-]*l[\s\/.\-]*v[\s\/.\-]*e/gi, 'twelve');
+    text = text.replace(/t[\s\/.\-]*w[\s\/.\-]*e[\s\/.\-]*n[\s\/.\-]*t[\s\/.\-]*y/gi, 'twenty');
+    text = text.replace(/t[\s\/.\-]*h[\s\/.\-]*i[\s\/.\-]*r[\s\/.\-]*t[\s\/.\-]*y/gi, 'thirty');
+    text = text.replace(/f[\s\/.\-]*o[\s\/.\-]*r[\s\/.\-]*t[\s\/.\-]*y/gi, 'forty');
+    text = text.replace(/f[\s\/.\-]*i[\s\/.\-]*f[\s\/.\-]*t[\s\/.\-]*y/gi, 'fifty');
+    text = text.replace(/s[\s\/.\-]*i[\s\/.\-]*x[\s\/.\-]*t[\s\/.\-]*y/gi, 'sixty');
+    text = text.replace(/s[\s\/.\-]*e[\s\/.\-]*v[\s\/.\-]*e[\s\/.\-]*n/gi, 'seven');
+    text = text.replace(/e[\s\/.\-]*i[\s\/.\-]*g[\s\/.\-]*h[\s\/.\-]*t/gi, 'eight');
+    text = text.replace(/t[\s\/.\-]*h[\s\/.\-]*r[\s\/.\-]*e[\s\/.\-]*e/gi, 'three');
+    text = text.replace(/f[\s\/.\-]*o[\s\/.\-]*u[\s\/.\-]*r/gi, 'four');
+    text = text.replace(/f[\s\/.\-]*i[\s\/.\-]*v[\s\/.\-]*e/gi, 'five');
+    text = text.replace(/n[\s\/.\-]*i[\s\/.\-]*n[\s\/.\-]*e/gi, 'nine');
     
     const ones = {
       'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
@@ -117,7 +118,7 @@ async function solveChallenge(challenge) {
   // Detect operation
   let result;
   
-  if (normalizedOp.includes('multipl') || normalizedOp.includes('times') || text.includes('product')) {
+  if (normalizedOp.includes('multipl') || normalizedOp.includes('times') || normalizedOp.includes('amplif') || text.includes('product')) {
     result = numbers.reduce((a, b) => a * b, 1);
   } else if ((text.includes('add') || text.includes('plus') || text.includes('sum') || text.includes('total') || text.includes('gain') || text.includes('increase')) && !normalizedOp.includes('multipl')) {
     result = numbers.reduce((a, b) => a + b, 0);
